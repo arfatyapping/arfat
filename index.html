@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anime Discovery – Hitori Gotoh &amp; Kessoku Band</title>
+<meta name="description" content="A soft pink anime discovery website: browse characters, scenes and search history. Add your own characters – saved in your browser.">
+
+<!--
+  ============================================================
+  HOW THIS FILE IS ORGANISED (beginner guide)
+  ------------------------------------------------------------
+  1. <style>   – all CSS. Colours/sizes live in :root variables at the top.
+  2. <body>    – page structure (navbar, hero, sections, footer).
+  3. <script>  – all JavaScript, in numbered sections:
+        1. CONFIG & DATA  <-- edit images, names, descriptions HERE
+        2. Helpers        (storage, DOM helpers, icons)
+        3. State
+        4. Rendering      (hero, scenes, chips, cards ...)
+        5. Search
+        6. Modals & forms (details, add/edit/delete, login demo)
+        7. Wiring & start-up
+  ============================================================
+-->
+
+<style>
+/* =========================================================
+   1. DESIGN TOKENS  (change colours / sizes here)
+   ========================================================= */
+:root{
+  --pink-50:#fff6f8;
+  --pink-100:#fde6eb;
+  --pink-200:#fbc9d3;
+  --pink-300:#f7a6b6;
+  --pink-400:#f08ba0;
+  --pink-500:#e8738a;
+  --pink-600:#d95c76;
+  --pink-700:#b8435d;
+  --dark:#3b3b3d;
+  --text:#2e2a2c;
+  --muted:#6f6468;
+  --white:#fff;
+  --danger:#b3263e;
+
+  --radius-sm:10px;
+  --radius-md:18px;
+  --radius-lg:28px;
+  --radius-pill:999px;
+
+  --shadow-sm:0 2px 10px rgba(214,110,135,.16);
+  --shadow-md:0 10px 28px rgba(214,110,135,.24);
+
+  --gutter:clamp(16px,4vw,48px);
+  --max:1200px;
+  --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* =========================================================
+   2. BASE
+   ========================================================= */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;font-family:var(--font);color:var(--text);background:#fff;
+  line-height:1.5;overflow-x:hidden;min-height:100vh;
+  display:flex;flex-direction:column;
+}
+[hidden]{display:none !important}
+img{display:block;max-width:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+h1,h2,h3,p,ul{margin:0}
+ul{padding:0;list-style:none}
+svg{display:block}
+:focus-visible{outline:3px solid var(--pink-700);outline-offset:2px}
+.hero :focus-visible{outline-color:#fff}
+.visually-hidden{position:absolute !important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip-link{position:absolute;left:12px;top:-60px;background:var(--dark);color:#fff;padding:10px 16px;border-radius:var(--radius-sm);z-index:300}
+.skip-link:focus{top:12px}
+
+/* soft pink blobs behind the whole page (like the reference background) */
+.bg-deco{
+  position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(520px 380px at 88% 70%,rgba(251,201,211,.38),transparent 70%),
+    radial-gradient(560px 420px at 4% 100%,rgba(251,201,211,.32),transparent 70%),
+    radial-gradient(420px 300px at 50% 0%,rgba(253,230,235,.5),transparent 70%);
+}
+.page{width:100%;max-width:var(--max);margin:0 auto;padding:0 var(--gutter);flex:1 0 auto}
+
+/* =========================================================
+   3. BUTTONS
+   ========================================================= */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:40px;padding:0 22px;border-radius:var(--radius-pill);
+  border:2px solid transparent;font-weight:600;line-height:1;
+  transition:transform .15s,box-shadow .15s,background .15s,color .15s;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0) scale(.98)}
+.btn[disabled]{opacity:.65;cursor:not-allowed;transform:none}
+.btn.outline{background:#fff;border-color:var(--text);color:var(--text)}
+.btn.outline:hover{background:var(--text);color:#fff}
+.btn.solid{background:var(--pink-600);color:#fff;box-shadow:var(--shadow-sm)}
+.btn.solid:hover{background:var(--pink-700)}
+.btn.white{background:#fff;color:var(--dark);box-shadow:var(--shadow-sm)}
+.btn.white:hover{box-shadow:var(--shadow-md)}
+.btn.danger{background:var(--danger);color:#fff}
+.btn.small{min-height:34px;padding:0 14px;font-size:.85rem}
+.btn svg{width:16px;height:16px}
+.link-btn{background:none;border:0;padding:4px 2px;color:var(--pink-700);font-weight:600;font-size:.85rem;text-decoration:underline;text-underline-offset:3px}
+.link-btn:hover{color:var(--dark)}
+.icon-btn{
+  display:grid;place-items:center;width:clamp(36px,3.6vw,42px);aspect-ratio:1;border-radius:10px;
+  border:0;color:#fff;transition:transform .15s,box-shadow .15s;
+}
+.icon-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.icon-btn svg{width:55%;height:55%}
+.icon-btn.dark{background:#444}
+.icon-btn.pink{background:linear-gradient(160deg,#f8b0bf,#ec7a92)}
+
+/* =========================================================
+   4. NAVBAR
+   ========================================================= */
+.nav{
+  position:relative;z-index:30;
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+  gap:16px;padding-top:clamp(14px,2.2vw,22px);
+}
+.nav-tools{display:flex;gap:8px}
+.nav-menu{display:contents}
+.nav-links{display:flex;gap:clamp(18px,4.6vw,56px)}
+.nav-links a{
+  color:#333;text-decoration:none;font-size:clamp(.9rem,1.5vw,1.05rem);
+  padding:6px 2px;border-bottom:1px solid transparent;transition:border-color .2s,color .2s;
+}
+.nav-links a:hover{color:var(--pink-700)}
+.nav-links a.active{border-bottom-color:#333}
+.nav-auth{display:flex;gap:10px;justify-self:end}
+.nav-auth .btn{min-height:clamp(34px,3.2vw,42px);padding:0 clamp(14px,2vw,26px);font-size:clamp(.82rem,1.3vw,.95rem)}
+.nav-toggle{display:none;place-items:center;width:42px;height:42px;border-radius:10px;border:2px solid var(--text);background:#fff}
+.nav-toggle svg{width:22px;height:22px}
+
+/* Search panel (opens under the navbar) */
+.search-panel{margin-top:14px;position:relative;z-index:25}
+.search-form{
+  display:flex;gap:8px;align-items:center;background:#fff;border:1.5px solid var(--pink-200);
+  border-radius:var(--radius-pill);padding:6px 6px 6px 16px;box-shadow:var(--shadow-sm);
+}
+.search-form svg{width:20px;height:20px;color:var(--pink-600);flex:none}
+.search-form input{flex:1;min-width:0;border:0;outline:0;font:inherit;padding:8px 4px;background:transparent}
+.search-form:focus-within{border-color:var(--pink-500);box-shadow:0 0 0 4px rgba(232,115,138,.2)}
+.search-form .icon-x{background:none;border:0;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:var(--muted)}
+.search-form .icon-x:hover{background:var(--pink-100)}
+.search-form .icon-x svg{width:16px;height:16px;color:inherit}
+
+/* =========================================================
+   5. HERO CAROUSEL
+   ========================================================= */
+.hero-wrap{position:relative;padding-top:clamp(22px,3.2vw,34px)}
+.hero{position:relative;height:clamp(250px,33vw,380px);border-radius:var(--radius-lg)}
+.hero-bg{
+  position:absolute;inset:0;border-radius:inherit;overflow:hidden;
+  background:linear-gradient(135deg,#f6a2b3 0%,#ef8499 55%,#e97b91 100%);
+  box-shadow:var(--shadow-md);
+}
+.hero-bg::before{ /* big soft circle, bottom-left */
+  content:"";position:absolute;left:0;bottom:-26%;width:36%;aspect-ratio:1;border-radius:50%;
+  background:rgba(255,255,255,.15);
+}
+.hero-bg::after{ /* sparkles */
+  content:"";position:absolute;inset:0;opacity:.7;
+  background:
+    radial-gradient(circle,rgba(255,255,255,.85) 0 1.5px,transparent 2px) 52% 58%/100% 100% no-repeat,
+    radial-gradient(circle,rgba(255,255,255,.6) 0 1px,transparent 1.5px) 30% 20%/100% 100% no-repeat,
+    radial-gradient(circle,rgba(255,255,255,.6) 0 1px,transparent 1.5px) 62% 15%/100% 100% no-repeat,
+    radial-gradient(circle,rgba(255,255,255,.5) 0 1px,transparent 1.5px) 44% 80%/100% 100% no-repeat;
+}
+.hero-logo{position:absolute;left:3.2%;top:7%;width:clamp(34px,6vw,58px);color:#fff;opacity:.95}
+.slides{position:absolute;inset:0}
+.slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .55s ease}
+.slide.active{opacity:1;pointer-events:auto}
+.slide-text{position:absolute;left:11%;top:30%;width:48%;color:#fff}
+.slide-text h2{font-size:clamp(1.25rem,2.9vw,2.2rem);font-weight:600;line-height:1.15;letter-spacing:.01em}
+.slide-text p{
+  margin-top:10px;font-size:clamp(.78rem,1.25vw,1rem);font-weight:600;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+}
+.slide-art{position:absolute;border:0;background:none;padding:0;display:flex;align-items:center;justify-content:center}
+.slide-art img.img-failed{width:auto !important;height:62% !important;aspect-ratio:1;border-radius:24px}
+.slide-art.cutout{right:2%;bottom:0;width:44%;height:110%}
+.slide-art.cutout img{width:100%;height:100%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 8px 14px rgba(150,50,80,.18))}
+.slide-art.photo{right:5%;top:12%;bottom:12%;width:min(32%,300px)}
+.slide-art.photo img{width:100%;height:100%;object-fit:cover;border-radius:24px;border:4px solid rgba(255,255,255,.9);box-shadow:var(--shadow-md)}
+.img-failed{object-fit:contain !important;background:var(--pink-100)}
+
+.dots{position:absolute;left:21%;bottom:3.5%;display:flex;flex-wrap:wrap;gap:10px;max-width:50%;z-index:3}
+.dots button{
+  width:clamp(20px,3.8vw,46px);height:18px;padding:7px 0;border:0;background:rgba(255,255,255,.45);
+  background-clip:content-box;border-radius:4px;transition:background .25s;
+}
+.dots button:hover{background:rgba(255,255,255,.75);background-clip:content-box}
+.dots button.active{background:#fff;background-clip:content-box}
+
+.arrow{
+  position:absolute;top:calc(50% + 14px);transform:translateY(-50%);z-index:4;
+  width:32px;height:60px;display:grid;place-items:center;background:none;border:0;color:var(--pink-500);
+  transition:transform .15s,color .15s;
+}
+.arrow svg{width:30px;height:44px;stroke-width:3.2}
+.arrow:hover{color:var(--pink-700)}
+.arrow.prev{left:-36px}.arrow.next{right:-36px}
+.arrow.prev:hover{transform:translateY(-50%) translateX(-2px)}
+.arrow.next:hover{transform:translateY(-50%) translateX(2px)}
+
+/* =========================================================
+   6. TOP GRID (Anime scene | Recent Search | Chibi | Info)
+   ========================================================= */
+.top-grid{
+  display:grid;grid-template-columns:205fr 162fr 98fr 143fr;
+  gap:clamp(14px,2.2vw,28px);margin-top:clamp(18px,3vw,34px);align-items:start;
+}
+.h-lg{display:flex;align-items:center;gap:6px;font-size:clamp(1.1rem,2vw,1.6rem);font-weight:700;color:var(--dark)}
+.h-lg svg{width:.8em;height:.8em;stroke-width:3}
+.h-md{font-size:clamp(1rem,1.9vw,1.5rem);font-weight:600;color:#4a4547;text-align:center}
+
+.scene-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.scene-card{
+  position:relative;aspect-ratio:98/122;border-radius:22px;overflow:hidden;background:var(--pink-100);
+  box-shadow:var(--shadow-sm);border:0;padding:0;transition:transform .2s,box-shadow .2s;
+}
+.scene-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.scene-card img{width:100%;height:100%;object-fit:cover}
+.col-scenes .btn.wide{width:100%;margin-top:16px;min-height:clamp(38px,4.2vw,48px);font-size:clamp(.9rem,1.5vw,1.1rem)}
+
+.recent-head{display:flex;flex-direction:column;align-items:center;gap:2px}
+.recent-list{display:flex;flex-direction:column;gap:clamp(8px,1.2vw,12px);margin-top:14px}
+.chip{
+  display:flex;align-items:center;border-radius:12px;min-height:clamp(36px,3.8vw,50px);
+  box-shadow:var(--shadow-sm);transition:transform .15s;overflow:hidden;
+}
+.chip:hover{transform:translateX(2px)}
+.chip.c0{background:#fcc5cf;color:#6e2535}
+.chip.c1{background:#de6c84;color:#fff}
+.chip.c2{background:#d35f78;color:#fff}
+.chip.c3{background:#434343;color:#fff}
+.chip-main{
+  flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;color:inherit;
+  padding:0 4px 0 12px;min-height:inherit;text-align:left;font-weight:700;font-size:clamp(.72rem,1.15vw,.95rem);
+}
+.chip-main svg{width:clamp(14px,1.6vw,18px);height:clamp(14px,1.6vw,18px);flex:none;opacity:.9}
+.chip-main span{flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip-x{background:none;border:0;color:inherit;width:30px;align-self:stretch;display:grid;place-items:center;opacity:.8}
+.chip-x:hover{opacity:1;background:rgba(255,255,255,.2)}
+.chip-x svg{width:13px;height:13px}
+.empty-note{text-align:center;color:var(--muted);font-size:.9rem;padding:14px 10px;background:#fff;border:1.5px dashed var(--pink-200);border-radius:14px}
+
+.col-chibi{padding-top:10px;padding-left:10px}
+.chibi-list{display:flex;flex-direction:column;gap:14px}
+.chibi{
+  position:relative;aspect-ratio:98/92;border-radius:16px;box-shadow:var(--shadow-sm);
+  background:linear-gradient(160deg,#fbbfca,#f29cb0);
+}
+.chibi img{width:100%;height:100%;object-fit:contain;padding:6%}
+.chibi-x{
+  position:absolute;left:-10px;top:-10px;width:26px;height:26px;border-radius:50%;border:2px solid #fff;
+  background:#444;color:#fff;display:grid;place-items:center;transition:transform .15s,background .15s;z-index:2;
+}
+.chibi-x:hover{background:var(--pink-700);transform:scale(1.08)}
+.chibi-x svg{width:12px;height:12px}
+.col-chibi .empty-note{font-size:.8rem}
+
+.info-list{display:flex;flex-direction:column;gap:clamp(10px,1.4vw,14px);padding-top:10px}
+.info-card{
+  position:relative;display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:14px;
+  padding:10px;box-shadow:var(--shadow-sm);transition:transform .2s,box-shadow .2s;
+}
+.info-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.info-card img{width:clamp(36px,4.6vw,56px);aspect-ratio:1;object-fit:cover;border-radius:9px;flex:none;background:var(--pink-100)}
+.info-card h3{font-size:clamp(.78rem,1.2vw,.95rem);font-weight:600;color:#555}
+.info-card p{
+  font-size:clamp(.68rem,.95vw,.8rem);color:var(--muted);line-height:1.35;margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+
+/* the whole card is clickable through the heading button */
+.hit{background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.hit::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.hit:focus-visible{outline:none}
+.hit:focus-visible::after{outline:3px solid var(--pink-700);outline-offset:2px}
+
+/* =========================================================
+   7. LOWER SECTIONS
+   ========================================================= */
+.section{margin-top:clamp(40px,6vw,76px);scroll-margin-top:16px;animation:fadeUp .6s ease both}
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.section-head h2{font-size:clamp(1.25rem,2.4vw,1.75rem);font-weight:700;color:var(--dark)}
+.section-head p{color:var(--muted);font-size:.95rem;margin-top:2px;max-width:60ch}
+.panel{
+  background:linear-gradient(180deg,var(--pink-50),#fff);border:1px solid var(--pink-100);
+  border-radius:var(--radius-lg);padding:clamp(18px,3vw,32px);
+}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:clamp(14px,2vw,22px)}
+
+.cc{
+  position:relative;background:#fff;border-radius:20px;box-shadow:var(--shadow-sm);overflow:hidden;
+  display:flex;flex-direction:column;transition:transform .2s,box-shadow .2s;
+}
+.cc:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.cc-art{aspect-ratio:4/3;background:linear-gradient(160deg,#fbc9d3,#f29cb0)}
+.cc-art img{width:100%;height:100%;object-fit:cover}
+.cc-art.is-cutout img{object-fit:contain;object-position:center bottom}
+.cc-body{padding:14px 16px 16px;flex:1}
+.cc-body h3{font-size:1.05rem;font-weight:700;color:var(--dark)}
+.cc-anime{color:var(--pink-700);font-size:.8rem;font-weight:600;margin-top:2px}
+.cc-desc{
+  color:var(--muted);font-size:.9rem;margin-top:6px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.cc-actions{display:flex;gap:8px;padding:0 16px 16px;position:relative;z-index:2}
+.cc-actions .btn{flex:1}
+
+.scene-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:16px}
+.scene-big{
+  position:relative;aspect-ratio:4/5;border-radius:22px;overflow:hidden;background:var(--pink-100);
+  box-shadow:var(--shadow-sm);border:0;padding:0;text-align:left;transition:transform .2s,box-shadow .2s;
+}
+.scene-big:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.scene-big img{width:100%;height:100%;object-fit:cover}
+.scene-big span{
+  position:absolute;left:0;right:0;bottom:0;padding:28px 14px 12px;color:#fff;font-weight:600;font-size:.9rem;
+  background:linear-gradient(180deg,transparent,rgba(110,30,55,.75));
+}
+
+.explore-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.explore-card{
+  display:flex;flex-direction:column;gap:6px;text-align:left;background:#fff;border:1px solid var(--pink-100);
+  border-radius:20px;padding:20px;box-shadow:var(--shadow-sm);transition:transform .2s,box-shadow .2s,border-color .2s;
+}
+.explore-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--pink-300)}
+.explore-card .ico{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--pink-100);color:var(--pink-700);margin-bottom:6px}
+.explore-card .ico svg{width:24px;height:24px}
+.explore-card strong{font-size:1.05rem;color:var(--dark)}
+.explore-card span{font-size:.88rem;color:var(--muted)}
+
+.empty-state{
+  text-align:center;padding:34px 18px;background:#fff;border:1.5px dashed var(--pink-200);border-radius:20px;color:var(--muted);
+}
+.empty-state h3{color:var(--dark);font-size:1.1rem;margin-bottom:4px}
+.empty-state .btn,.empty-state .chips-row{margin-top:14px}
+.chips-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+
+/* =========================================================
+   8. FOOTER
+   ========================================================= */
+.footer{margin-top:clamp(48px,7vw,90px);background:linear-gradient(180deg,rgba(253,230,235,0),var(--pink-100) 45%);padding:clamp(36px,5vw,56px) 0 28px}
+.footer-grid{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:28px}
+.footer h2{font-size:1.1rem;color:var(--dark);margin-bottom:10px}
+.footer p{color:var(--muted);font-size:.92rem;max-width:52ch}
+.footer ul{display:grid;gap:6px}
+.footer .link-btn{font-weight:500;font-size:.95rem;text-decoration:none;color:var(--text);padding:2px 0}
+.footer .link-btn:hover{color:var(--pink-700);text-decoration:underline}
+.footer-bottom{margin-top:28px;padding-top:16px;border-top:1px solid var(--pink-200);color:var(--muted);font-size:.82rem;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+
+/* =========================================================
+   9. MODAL, FORMS, TOAST
+   ========================================================= */
+.modal{
+  position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;
+  background:rgba(48,28,36,.5);opacity:0;transition:opacity .18s;
+}
+.modal.open{opacity:1}
+.modal-dialog{
+  position:relative;background:#fff;border-radius:24px;width:min(100%,500px);max-height:calc(100vh - 32px);
+  max-height:calc(100dvh - 32px);overflow:auto;padding:26px;box-shadow:0 24px 60px rgba(60,20,35,.35);
+  transform:translateY(10px) scale(.98);transition:transform .18s;
+}
+.modal.open .modal-dialog{transform:none}
+.modal-dialog.wide{width:min(100%,780px)}
+.modal-close{
+  position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:var(--pink-100);
+  color:var(--pink-700);display:grid;place-items:center;z-index:3;
+}
+.modal-close:hover{background:var(--pink-200)}
+.modal-close svg{width:16px;height:16px}
+.modal h2{font-size:1.4rem;color:var(--dark);padding-right:36px}
+
+.detail{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:22px}
+.detail-art{aspect-ratio:4/5;border-radius:20px;overflow:hidden;background:linear-gradient(160deg,#fbc9d3,#f29cb0)}
+.detail-art img{width:100%;height:100%;object-fit:cover}
+.detail-art.is-cutout img{object-fit:contain;object-position:center bottom}
+.detail-anime{color:var(--pink-700);font-weight:600;margin-top:2px}
+.detail-desc{margin-top:12px;color:var(--text)}
+.detail-scene{margin:16px 0 0}
+.detail-scene img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:14px}
+.detail-scene figcaption{font-size:.8rem;color:var(--muted);margin-top:4px}
+.detail-actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.hint{font-size:.82rem;color:var(--muted);margin-top:4px}
+
+.form{display:grid;gap:14px}
+.field label{display:block;font-weight:600;font-size:.92rem;margin-bottom:5px}
+.field .req{color:var(--pink-700)}
+.field .opt{color:var(--muted);font-weight:400}
+.input{
+  width:100%;font:inherit;padding:10px 14px;border:1.5px solid var(--pink-200);border-radius:12px;background:#fff;color:var(--text);
+  transition:border-color .15s,box-shadow .15s;
+}
+textarea.input{resize:vertical;min-height:96px}
+.input:focus{outline:none;border-color:var(--pink-500);box-shadow:0 0 0 4px rgba(232,115,138,.22)}
+.input[aria-invalid="true"]{border-color:var(--danger)}
+.field-error{color:var(--danger);font-size:.84rem;font-weight:600;margin-top:5px}
+.form-status{color:var(--danger);font-weight:600;font-size:.9rem}
+.form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:4px;flex-wrap:wrap}
+
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);z-index:200;max-width:min(92vw,460px);
+  background:var(--dark);color:#fff;padding:12px 20px;border-radius:var(--radius-pill);font-weight:600;font-size:.92rem;
+  box-shadow:var(--shadow-md);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;text-align:center;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.error{background:var(--danger)}
+.toast.ok{background:#2d6a4f}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* =========================================================
+   10. RESPONSIVE
+   ========================================================= */
+@media (max-width:1100px){
+  .explore-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:900px){
+  .arrow{top:50%;background:rgba(255,255,255,.85);border-radius:50%;width:36px;height:36px;box-shadow:var(--shadow-sm);transform:translateY(-50%)}
+  .arrow svg{width:18px;height:22px}
+  .arrow.prev{left:6px}.arrow.next{right:6px}
+  .arrow.prev:hover,.arrow.next:hover{transform:translateY(-50%)}
+  .arrow{top:calc(50% + 17px)}
+  .top-grid{grid-template-columns:1fr 1fr;gap:26px 20px}
+  .chibi-list{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .col-chibi{padding-left:10px}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .footer-grid>div:first-child{grid-column:1/-1}
+  .detail{grid-template-columns:1fr}
+  .detail-art{aspect-ratio:16/11}
+}
+@media (max-width:720px){
+  .nav{display:flex;justify-content:space-between}
+  .nav-toggle{display:grid}
+  .nav-menu{
+    display:none;position:absolute;top:100%;left:0;right:0;margin-top:10px;flex-direction:column;gap:16px;
+    background:#fff;border-radius:20px;box-shadow:var(--shadow-md);padding:18px;border:1px solid var(--pink-100);
+  }
+  .nav-menu.open{display:flex;animation:fadeUp .2s ease both}
+  .nav-links{flex-direction:column;gap:6px}
+  .nav-links a{padding:10px 4px;font-size:1.05rem;align-self:flex-start}
+  .nav-auth{justify-self:stretch}
+  .nav-auth .btn{flex:1}
+  .slide-text{left:7%;top:22%;width:56%}
+  .slide-art.cutout{width:48%;right:-2%}
+  .slide-art.photo{width:34%;right:4%}
+  .dots{left:7%;max-width:60%;bottom:2.5%}
+  .explore-grid{gap:12px}
+}
+@media (max-width:560px){
+  .top-grid{grid-template-columns:1fr}
+  .explore-grid{grid-template-columns:1fr 1fr}
+  .explore-card{padding:14px}
+  .footer-grid{grid-template-columns:1fr}
+  .modal-dialog{padding:20px}
+  .scene-pair{max-width:420px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
+</style>
+</head>
+
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+<div class="bg-deco" aria-hidden="true"></div>
+
+<div class="page">
+
+  <!-- ================= NAVBAR ================= -->
+  <header class="nav" id="top">
+    <div class="nav-tools">
+      <button class="icon-btn dark" id="btnProfile" type="button" aria-label="Jump to characters you added"></button>
+      <button class="icon-btn pink" id="btnAdd" type="button" aria-label="Add a character"></button>
+    </div>
+
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="navMenu" aria-label="Open menu"></button>
+
+    <div class="nav-menu" id="navMenu">
+      <nav class="nav-links" aria-label="Main">
+        <a href="#top" data-nav="home" class="active" aria-current="page">Home</a>
+        <a href="#search" data-nav="search">Search</a>
+        <a href="#message" data-nav="message">Message</a>
+      </nav>
+      <div class="nav-auth">
+        <button class="btn outline" id="btnLogin" type="button">Log in</button>
+        <button class="btn solid" id="btnSignup" type="button">Sign up</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= SEARCH PANEL ================= -->
+  <section class="search-panel" id="searchPanel" hidden aria-label="Search">
+    <form class="search-form" id="searchForm" role="search">
+      <span id="searchIcon"></span>
+      <label class="visually-hidden" for="searchInput">Search characters, series or descriptions</label>
+      <input id="searchInput" type="search" placeholder="Search characters, series, descriptions…" autocomplete="off" maxlength="80">
+      <button class="btn solid small" type="submit">Search</button>
+      <button class="icon-x" id="searchClose" type="button" aria-label="Close search"></button>
+    </form>
+  </section>
+
+  <main id="main">
+
+    <!-- ================= HERO CAROUSEL ================= -->
+    <section class="hero-wrap" aria-label="Featured characters">
+      <div class="hero" id="hero" role="group" aria-roledescription="carousel" aria-label="Featured characters">
+        <div class="hero-bg" aria-hidden="true">
+          <!-- simple decorative band mark (top-left) -->
+          <svg class="hero-logo" viewBox="0 0 60 60" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round">
+            <circle cx="30" cy="26" r="17"/><path d="M14 44 44 8"/><text x="30" y="58" text-anchor="middle" font-size="9" fill="currentColor" stroke="none" font-family="sans-serif">結束バンド</text>
+          </svg>
+        </div>
+        <div class="slides" id="slides"></div>
+        <div class="dots" id="dots" role="group" aria-label="Choose a slide"></div>
+      </div>
+      <button class="arrow prev" id="heroPrev" type="button" aria-label="Previous character"></button>
+      <button class="arrow next" id="heroNext" type="button" aria-label="Next character"></button>
+    </section>
+
+    <!-- ================= TOP GRID ================= -->
+    <div class="top-grid">
+
+      <section class="col-scenes" aria-labelledby="scenesTitle">
+        <h2 class="h-lg" id="scenesTitle">Anime scene <span id="scenesChevron"></span></h2>
+        <div class="scene-pair" id="scenePair"></div>
+        <button class="btn white wide" id="btnViewMore" type="button" aria-expanded="false" aria-controls="moreScenes">View more</button>
+      </section>
+
+      <section class="col-recent" aria-labelledby="recentTitle">
+        <div class="recent-head">
+          <h2 class="h-md" id="recentTitle">Recent Search</h2>
+          <button class="link-btn" id="btnClearAll" type="button">Clear all</button>
+        </div>
+        <ul class="recent-list" id="recentList"></ul>
+      </section>
+
+      <section class="col-chibi" aria-label="Character stickers">
+        <div class="chibi-list" id="chibiList"></div>
+      </section>
+
+      <section class="col-info" aria-label="Character information">
+        <div class="info-list" id="infoList"></div>
+      </section>
+    </div>
+
+    <!-- ================= SEARCH RESULTS (shown after a search) ================= -->
+    <section class="section" id="results" hidden aria-labelledby="resultsTitle">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <h2 id="resultsTitle">Results</h2>
+            <p id="resultsCount" role="status"></p>
+          </div>
+          <button class="btn outline small" id="btnClearSearch" type="button">Clear search</button>
+        </div>
+        <div id="resultsBody"></div>
+      </div>
+    </section>
+
+    <!-- ================= MORE SCENES (View more) ================= -->
+    <section class="section" id="moreScenes" hidden aria-labelledby="moreScenesTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="moreScenesTitle">Popular Anime Scenes</h2>
+          <p>Tap a scene to open the character it belongs to.</p>
+        </div>
+        <button class="btn outline small" id="btnHideScenes" type="button">Show less</button>
+      </div>
+      <div class="scene-grid" id="sceneGrid"></div>
+    </section>
+
+    <!-- ================= TRENDING ================= -->
+    <section class="section" id="trending" aria-labelledby="trendingTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="trendingTitle">Trending Characters</h2>
+          <p>Meet the band and everyone you have added. Select a card to read more.</p>
+        </div>
+        <button class="btn solid small" id="btnAddTrending" type="button"></button>
+      </div>
+      <div class="card-grid" id="trendingGrid"></div>
+    </section>
+
+    <!-- ================= RECENTLY ADDED ================= -->
+    <section class="section" id="recentlyAdded" aria-labelledby="addedTitle">
+      <div class="section-head">
+        <div>
+          <h2 id="addedTitle">Recently Added by You</h2>
+          <p>Characters you create are stored in this browser only (localStorage). You can edit or delete them any time.</p>
+        </div>
+      </div>
+      <div id="addedBody"></div>
+    </section>
+
+    <!-- ================= EXPLORE ================= -->
+    <section class="section" id="explore" aria-labelledby="exploreTitle">
+      <div class="panel">
+        <div class="section-head">
+          <div>
+            <h2 id="exploreTitle">Explore Anime</h2>
+            <p>Quick ways into the collection.</p>
+          </div>
+        </div>
+        <div class="explore-grid" id="exploreGrid"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ================= FOOTER ================= -->
+<footer class="footer">
+  <div class="page">
+    <div class="footer-grid">
+      <div>
+        <h2>About</h2>
+        <p>A soft pink anime discovery page for browsing characters and scenes. It is a fan-made learning project; character artwork belongs to its respective owners.</p>
+      </div>
+      <div>
+        <h2>Navigate</h2>
+        <ul>
+          <li><button class="link-btn" type="button" data-footer="home">Home</button></li>
+          <li><button class="link-btn" type="button" data-footer="search">Search</button></li>
+          <li><button class="link-btn" type="button" data-footer="message">Message</button></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Collection</h2>
+        <ul>
+          <li><button class="link-btn" type="button" data-footer="add">Add a character</button></li>
+          <li><button class="link-btn" type="button" data-footer="trending">Trending characters</button></li>
+          <li><button class="link-btn" type="button" data-footer="scenes">Anime scenes</button></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Anime Discovery – demo project</span>
+      <span>Your characters and searches live in this browser only.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ================= MODAL HOST ================= -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-dialog" id="modalDialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   1. CONFIG & DATA   <-- the part you will edit most
+   ========================================================= */
+
+/* ---- 1a. Every supplied image URL lives here (8 in total) ---- */
+const IMAGES = Object.freeze({
+  hero:           'https://cdn.phototourl.com/member/2026-10-12-0b88a8da-739f-4560-ad9a-e0b7ea17d47f.png', // Hitori Gotoh (transparent PNG)
+  scene1:         'https://cdn.phototourl.com/member/2026-10-12-d7770e62-4d5f-4e13-82ca-50f790374da1.jpg', // Image 1 – Anime scene card
+  scene2:         'https://cdn.phototourl.com/member/2026-10-12-f7243e50-ffec-4185-a173-c372a668f5c5.jpg', // Image 2 – Anime scene card
+  chibiChristmas: 'https://cdn.phototourl.com/member/2026-10-12-80255388-b870-401c-86a9-12af633e31fd.png', // Image 3 – Christmas Hitori chibi
+  chibi:          'https://cdn.phototourl.com/member/2026-10-12-57b26a56-80a0-43fa-9fbc-c1f2241bad79.png', // Image 4 – Hitori chibi
+  orangeScene:    'https://cdn.phototourl.com/member/2026-10-12-72eee78a-f598-4a47-ba99-7a11e79918ad.jpg', // Image 5 – orange-haired anime scene
+  hatGirl:        'https://cdn.phototourl.com/member/2026-10-12-cb536c51-3199-45aa-b199-226bde263978.jpg', // Image 6 – anime girl with hat
+  blonde:         'https://cdn.phototourl.com/member/2026-10-12-9bf48c09-aa26-4a95-99d2-e75bbc2985bc.jpg'  // Image 7 – blonde anime character
+});
+
+/* ---- 1b. Original characters (protected: they cannot be edited/deleted) ----
+   imageType: 'cutout' = transparent PNG (shown with object-fit: contain)
+              'photo'  = normal picture   (shown with object-fit: cover)       */
+const ORIGINAL_CHARACTERS = Object.freeze([
+  { id:'hitori-gotoh', name:'Hitori Gotoh',
+    description:'She is in the first year of Shuka High School and is in charge of the guitar and lyrics of the band, Kessoku Band.',
+    imageUrl:IMAGES.hero, imageType:'cutout', sceneImageUrl:IMAGES.scene1, animeName:'Bocchi the Rock!',
+    tags:['popularity','cosplay','kessoku band'] },
+  { id:'ikuyo-kita', name:'Ikuyo Kita',
+    description:'She is the vocalist and rhythm guitarist of Kessoku Band, known for her bright and outgoing personality.',
+    imageUrl:IMAGES.orangeScene, imageType:'photo', sceneImageUrl:'', animeName:'Bocchi the Rock!',
+    tags:['popularity','kessoku band'] },
+  { id:'nijika-ijichi', name:'Nijika Ijichi',
+    description:'She is the drummer and leader of Kessoku Band, and the one who keeps the group together.',
+    imageUrl:IMAGES.blonde, imageType:'photo', sceneImageUrl:'', animeName:'Bocchi the Rock!',
+    tags:['popularity','kessoku band'] },
+  { id:'ryo-yamada', name:'Ryo Yamada',
+    description:'She is the bassist of Kessoku Band, one of the main characters of the manga and anime series Bocchi the Rock!',
+    imageUrl:IMAGES.hatGirl, imageType:'photo', sceneImageUrl:'', animeName:'Bocchi the Rock!',
+    tags:['popularity','kessoku band'] }
+].map(c => Object.freeze({ ...c, isUserAdded:false, createdAt:0, updatedAt:0 })));
+
+/* ---- 1c. Anime-scene cards. The first two show in the top section;
+          the rest appear when "View more" is pressed. ---- */
+const ORIGINAL_SCENES = Object.freeze([
+  { id:'scene-1', title:'Hitori Gotoh · Bocchi the Rock!', imageUrl:IMAGES.scene1, characterId:'hitori-gotoh', alt:'Anime scene featuring Hitori Gotoh' },
+  { id:'scene-2', title:'Hitori Gotoh · Bocchi the Rock!', imageUrl:IMAGES.scene2, characterId:'hitori-gotoh', alt:'Another anime scene featuring Hitori Gotoh' },
+  { id:'scene-3', title:'Ikuyo Kita · Bocchi the Rock!',   imageUrl:IMAGES.orangeScene, characterId:'ikuyo-kita',    alt:'Anime scene featuring Ikuyo Kita' },
+  { id:'scene-4', title:'Ryo Yamada · Bocchi the Rock!',   imageUrl:IMAGES.hatGirl,     characterId:'ryo-yamada',    alt:'Anime scene featuring Ryo Yamada' },
+  { id:'scene-5', title:'Nijika Ijichi · Bocchi the Rock!',imageUrl:IMAGES.blonde,      characterId:'nijika-ijichi', alt:'Anime scene featuring Nijika Ijichi' }
+]);
+
+/* ---- 1d. The two small pink chibi cards ---- */
+const CHIBI_CARDS = Object.freeze([
+  { id:'chibi-christmas', imageUrl:IMAGES.chibiChristmas, alt:'Chibi Hitori in a Christmas outfit' },
+  { id:'chibi-casual',    imageUrl:IMAGES.chibi,          alt:'Chibi illustration of Hitori' }
+]);
+
+/* ---- 1e. Starter search history and "Explore" shortcuts ---- */
+const DEFAULT_RECENT = ['About Hitori Gotoh','Kessoku Band Anime','Popularity','Bocchi Cosplay'];
+const EXPLORE_ITEMS = [
+  { title:'Characters', desc:'Meet Kessoku Band',      icon:'users',   query:'Kessoku Band' },
+  { title:'Anime Scenes', desc:'Browse popular stills',icon:'image',   action:'scenes' },
+  { title:'Cosplay',    desc:'Bocchi cosplay ideas',   icon:'sparkle', query:'Bocchi cosplay' },
+  { title:'Popularity', desc:'Most-loved characters',  icon:'star',    query:'Popularity' }
+];
+
+/* ---- 1f. Settings ---- */
+const MAX_RECENT = 6;          // how many recent searches to keep
+const AUTOPLAY_MS = 6000;      // carousel autoplay delay (set AUTOPLAY_ENABLED false to turn off)
+const AUTOPLAY_ENABLED = true;
+const STORAGE_KEYS = Object.freeze({
+  characters:'animeDiscovery.userCharacters.v1',
+  recent:'animeDiscovery.recentSearches.v1',
+  hiddenChibi:'animeDiscovery.hiddenChibi.v1'
+});
+/* Words ignored when searching ("About Hitori Gotoh" -> "hitori gotoh") */
+const STOP_WORDS = new Set(['about','the','a','an','of','and','in','on','for','anime','to','with']);
+
+
+/* =========================================================
+   2. HELPERS
+   ========================================================= */
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+/* Tiny element builder: h('div', {class:'x', onclick:fn}, 'text', childNode)
+   Text is always inserted as text (never HTML) so user input is safe. */
+function h(tag, props, ...children){
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})){
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v === true ? '' : v);
+  }
+  const add = c => {
+    if (c === null || c === undefined || c === false || c === '') return;
+    if (Array.isArray(c)) c.forEach(add);
+    else node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  };
+  children.forEach(add);
+  return node;
+}
+
+/* ---- Icons (inline SVG, inherit colour) ---- */
+const svg = (inner, sw = 2.4, fill = 'none') =>
+  `<svg viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${inner}</svg>`;
+const ICONS = {
+  search:  svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+  close:   svg('<path d="M6 6l12 12M18 6 6 18"/>', 3),
+  left:    svg('<path d="m15 5-7 7 7 7"/>', 3),
+  right:   svg('<path d="m9 5 7 7-7 7"/>', 3),
+  chevron: svg('<path d="m9 6 6 6-6 6"/>', 3),
+  user:    svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z"/>', 1.6, 'currentColor'),
+  plus:    svg('<path d="M12 5v14M5 12h14"/>', 3),
+  menu:    svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+  edit:    svg('<path d="M4 20h4L19 9l-4-4L4 16z"/>', 2),
+  trash:   svg('<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>', 2),
+  users:   svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 5a3.5 3.5 0 0 1 0 7M18 14c2.4.6 3.5 2.6 3.5 6"/>', 2),
+  image:   svg('<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/>', 2),
+  sparkle: svg('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>', 2),
+  star:    svg('<path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.1 5.9-.8z"/>', 2)
+};
+function icon(name){
+  const t = document.createElement('template');
+  t.innerHTML = ICONS[name];
+  return t.content.firstChild;
+}
+
+/* ---- Images: graceful fallback if a URL fails to load ---- */
+const FALLBACK_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#fde6eb"/>' +
+  '<g fill="none" stroke="#d95c76" stroke-width="5" stroke-linecap="round"><rect x="28" y="32" width="64" height="52" rx="10"/>' +
+  '<circle cx="46" cy="50" r="5"/><path d="m32 78 18-18 14 14 10-10 14 14"/></g>' +
+  '<text x="60" y="106" font-size="10" text-anchor="middle" fill="#b8435d" font-family="sans-serif">Image unavailable</text></svg>');
+document.addEventListener('error', e => {
+  const t = e.target;
+  if (t && t.tagName === 'IMG' && !t.dataset.failed){
+    t.dataset.failed = '1';
+    t.classList.add('img-failed');
+    t.src = FALLBACK_IMG;
+  }
+}, true);
+const img = (src, alt, cls) => h('img', { src, alt, class:cls, loading:'lazy', decoding:'async', draggable:'false' });
+
+/* ---- Safe localStorage (falls back to memory if blocked) ---- */
+const memoryStore = {};
+const store = {
+  read(key){
+    try { return window.localStorage.getItem(key); }
+    catch (e) { return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null; }
+  },
+  write(key, value){
+    try { window.localStorage.setItem(key, value); return true; }
+    catch (e) { memoryStore[key] = value; return false; }
+  }
+};
+function readJSON(key){
+  const raw = store.read(key);
+  if (raw === null) return { found:false, value:null };
+  try { return { found:true, value:JSON.parse(raw) }; }
+  catch (e) { return { found:false, value:null }; }   // corrupted -> treat as missing
+}
+
+const isValidUrl = v => {
+  try { const u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; }
+  catch (e) { return false; }
+};
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const scrollToEl = el => el && el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block:'start' });
+
+/* ---- Toast messages ---- */
+let toastTimer;
+function toast(message, type = 'ok'){
+  const t = $('#toast');
+  const prefix = type === 'error' ? '⚠ ' : type === 'ok' ? '✓ ' : 'ℹ ';
+  t.textContent = prefix + message;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+
+/* =========================================================
+   3. STATE
+   ========================================================= */
+const state = {
+  userChars: [],      // characters created by the visitor
+  recent: [],         // recent searches
+  hiddenChibi: [],    // ids of chibi cards the visitor closed
+  query: '',          // active search
+  slide: 0,
+  nav: 'home',
+  previousNav: 'home'
+};
+const getAllCharacters = () => [...ORIGINAL_CHARACTERS, ...state.userChars];
+const findCharacter = id => getAllCharacters().find(c => c.id === id);
+
+function getScenes(){
+  const userScenes = state.userChars.filter(c => c.sceneImageUrl).map(c => ({
+    id:'scene-' + c.id, title:`${c.name}${c.animeName ? ' · ' + c.animeName : ''}`,
+    imageUrl:c.sceneImageUrl, characterId:c.id, alt:`Anime scene featuring ${c.name}`
+  }));
+  return [...ORIGINAL_SCENES, ...userScenes];
+}
+
+/* ---- Load + validate saved data ---- */
+function sanitizeCharacters(list){
+  if (!Array.isArray(list)) return [];
+  const seen = new Set(ORIGINAL_CHARACTERS.map(c => c.id));
+  const out = [];
+  for (const c of list.slice(0, 200)){
+    if (!c || typeof c !== 'object') continue;
+    const id = typeof c.id === 'string' ? c.id.trim() : '';
+    const name = typeof c.name === 'string' ? c.name.trim().slice(0, 60) : '';
+    const description = typeof c.description === 'string' ? c.description.trim().slice(0, 400) : '';
+    if (!id || seen.has(id) || !name || !description || !isValidUrl(c.imageUrl)) continue;
+    seen.add(id);
+    out.push({
+      id, name, description,
+      imageUrl:c.imageUrl,
+      imageType:'photo',
+      sceneImageUrl: isValidUrl(c.sceneImageUrl) ? c.sceneImageUrl : '',
+      animeName: typeof c.animeName === 'string' ? c.animeName.trim().slice(0, 80) : '',
+      tags:[],
+      isUserAdded:true,
+      createdAt: Number.isFinite(c.createdAt) ? c.createdAt : Date.now(),
+      updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : Date.now()
+    });
+  }
+  return out;
+}
+function loadState(){
+  state.userChars = sanitizeCharacters(readJSON(STORAGE_KEYS.characters).value);
+
+  const r = readJSON(STORAGE_KEYS.recent);
+  state.recent = (r.found && Array.isArray(r.value))
+    ? r.value.filter(s => typeof s === 'string' && s.trim()).map(s => s.trim().slice(0, 80)).slice(0, MAX_RECENT)
+    : [...DEFAULT_RECENT];
+
+  const hc = readJSON(STORAGE_KEYS.hiddenChibi);
+  const known = new Set(CHIBI_CARDS.map(c => c.id));
+  state.hiddenChibi = (hc.found && Array.isArray(hc.value)) ? hc.value.filter(id => known.has(id)) : [];
+}
+function persist(key, value){
+  const ok = store.write(key, JSON.stringify(value));
+  if (!ok) toast('Browser storage is unavailable, so this change will not survive a refresh.', 'info');
+  return ok;
+}
+
+
+/* =========================================================
+   4. RENDERING
+   ========================================================= */
+
+/* ---------- 4a. Hero carousel ---------- */
+const slidesEl = $('#slides'), dotsEl = $('#dots');
+
+function renderHero(){
+  const chars = getAllCharacters();
+  state.slide = clamp(state.slide, 0, chars.length - 1);
+  slidesEl.replaceChildren();
+  dotsEl.replaceChildren();
+
+  chars.forEach((c, i) => {
+    const art = h('button', {
+      class:'slide-art ' + (c.imageType === 'cutout' ? 'cutout' : 'photo'),
+      type:'button', 'aria-label':`View details for ${c.name}`,
+      onclick:() => openDetails(c.id)
+    }, img(c.imageUrl, c.name));
+    slidesEl.append(h('div', {
+      class:'slide', role:'group', 'aria-roledescription':'slide', 'aria-label':`${i + 1} of ${chars.length}`
+    }, h('div', { class:'slide-text' }, h('h2', { text:c.name }), h('p', { text:c.description })), art));
+
+    dotsEl.append(h('button', {
+      type:'button', 'aria-label':`Go to slide ${i + 1}: ${c.name}`,
+      onclick:() => goTo(i, true)
+    }));
+  });
+  goTo(state.slide, false);
+}
+
+function goTo(index, userInitiated){
+  const slides = $$('.slide', slidesEl);
+  if (!slides.length) return;
+  state.slide = (index + slides.length) % slides.length;
+  slides.forEach((s, i) => {
+    const on = i === state.slide;
+    s.classList.toggle('active', on);
+    s.inert = !on;                       // hidden slides cannot be tabbed to
+    s.setAttribute('aria-hidden', on ? 'false' : 'true');
+  });
+  $$('button', dotsEl).forEach((d, i) => {
+    const on = i === state.slide;
+    d.classList.toggle('active', on);
+    if (on) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current');
+  });
+  if (userInitiated) startAutoplay();
+}
+
+/* Autoplay: pauses on hover/focus and when the tab is hidden; off for reduced motion */
+let autoTimer = null, hoverPaused = false;
+function stopAutoplay(){ clearInterval(autoTimer); autoTimer = null; }
+function startAutoplay(){
+  stopAutoplay();
+  if (!AUTOPLAY_ENABLED || reduceMotion() || hoverPaused || document.hidden || getAllCharacters().length < 2) return;
+  autoTimer = setInterval(() => goTo(state.slide + 1, false), AUTOPLAY_MS);
+}
+
+/* ---------- 4b. Anime scenes ---------- */
+function renderScenes(){
+  const scenes = getScenes();
+  const pair = $('#scenePair'); pair.replaceChildren();
+  scenes.slice(0, 2).forEach(s => pair.append(
+    h('button', { class:'scene-card', type:'button', 'aria-label':`Open details: ${s.alt}`, onclick:() => openDetails(s.characterId) },
+      img(s.imageUrl, s.alt))
+  ));
+  const grid = $('#sceneGrid'); grid.replaceChildren();
+  scenes.slice(2).forEach(s => grid.append(
+    h('button', { class:'scene-big', type:'button', onclick:() => openDetails(s.characterId) },
+      img(s.imageUrl, s.alt), h('span', { text:s.title }))
+  ));
+}
+function setScenesOpen(open, scroll){
+  $('#moreScenes').hidden = !open;
+  const btn = $('#btnViewMore');
+  btn.textContent = open ? 'Show less' : 'View more';
+  btn.setAttribute('aria-expanded', String(open));
+  if (open && scroll) scrollToEl($('#moreScenes'));
+}
+
+/* ---------- 4c. Recent searches ---------- */
+function renderRecent(){
+  const list = $('#recentList'); list.replaceChildren();
+  $('#btnClearAll').hidden = state.recent.length === 0;
+  if (!state.recent.length){
+    list.append(h('li', { class:'empty-note' },
+      h('p', { text:'No recent searches yet.' }),
+      h('button', { class:'link-btn', type:'button', text:'Try a search', onclick:() => openSearch(true) })));
+    return;
+  }
+  state.recent.forEach((q, i) => {
+    list.append(h('li', { class:`chip c${i % 4}` },
+      h('button', { class:'chip-main', type:'button', title:`Search for ${q}`,
+        onclick:() => { openSearch(false); runSearch(q, { record:false }); } },
+        icon('search'), h('span', { text:q })),
+      h('button', { class:'chip-x', type:'button', 'aria-label':`Remove "${q}" from recent searches`, onclick:() => removeRecent(i) }, icon('close'))));
+  });
+}
+function addRecent(q){
+  state.recent = [q, ...state.recent.filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, MAX_RECENT);
+  persist(STORAGE_KEYS.recent, state.recent);
+  renderRecent();
+}
+function removeRecent(i){
+  const [gone] = state.recent.splice(i, 1);
+  persist(STORAGE_KEYS.recent, state.recent);
+  renderRecent();
+  toast(`Removed "${gone}" from recent searches.`);
+}
+function clearRecent(){
+  state.recent = [];
+  persist(STORAGE_KEYS.recent, state.recent);
+  renderRecent();
+  toast('Recent searches cleared.');
+}
+
+/* ---------- 4d. Chibi cards ---------- */
+function renderChibi(){
+  const list = $('#chibiList'); list.replaceChildren();
+  const visible = CHIBI_CARDS.filter(c => !state.hiddenChibi.includes(c.id));
+  visible.forEach(c => list.append(h('div', { class:'chibi' },
+    h('button', { class:'chibi-x', type:'button', 'aria-label':`Remove card: ${c.alt}`, onclick:() => hideChibi(c.id) }, icon('close')),
+    img(c.imageUrl, c.alt))));
+  if (state.hiddenChibi.length){
+    list.append(h('div', { class: visible.length ? '' : 'empty-note' },
+      visible.length ? null : h('p', { text:'All cards removed.' }),
+      h('button', { class:'link-btn', type:'button', text:'Restore cards', onclick:restoreChibi })));
+  }
+}
+function hideChibi(id){
+  if (!state.hiddenChibi.includes(id)) state.hiddenChibi.push(id);
+  persist(STORAGE_KEYS.hiddenChibi, state.hiddenChibi);
+  renderChibi();
+  toast('Card removed from the page.');
+}
+function restoreChibi(){
+  state.hiddenChibi = [];
+  persist(STORAGE_KEYS.hiddenChibi, state.hiddenChibi);
+  renderChibi();
+  toast('Cards restored.');
+}
+
+/* ---------- 4e. Small info cards ---------- */
+function renderInfo(){
+  const list = $('#infoList'); list.replaceChildren();
+  ORIGINAL_CHARACTERS.filter(c => c.id !== 'hitori-gotoh').forEach(c => list.append(
+    h('article', { class:'info-card' },
+      img(c.imageUrl, `${c.name}`),
+      h('div', {}, h('h3', {}, h('button', { class:'hit', type:'button', onclick:() => openDetails(c.id) }, c.name)),
+        h('p', { text:c.description })))));
+}
+
+/* ---------- 4f. Big character cards (trending / results / added) ---------- */
+function characterCard(c, withActions){
+  const card = h('article', { class:'cc' },
+    h('div', { class:'cc-art' + (c.imageType === 'cutout' ? ' is-cutout' : '') }, img(c.imageUrl, `Artwork of ${c.name}`)),
+    h('div', { class:'cc-body' },
+      h('h3', {}, h('button', { class:'hit', type:'button', onclick:() => openDetails(c.id) }, c.name)),
+      c.animeName ? h('p', { class:'cc-anime', text:c.animeName }) : null,
+      h('p', { class:'cc-desc', text:c.description })));
+  if (withActions && c.isUserAdded){
+    card.append(h('div', { class:'cc-actions' },
+      h('button', { class:'btn outline small', type:'button', 'aria-label':`Edit ${c.name}`, onclick:() => openCharacterForm(c.id) }, icon('edit'), 'Edit'),
+      h('button', { class:'btn outline small', type:'button', 'aria-label':`Delete ${c.name}`, onclick:() => confirmDelete(c.id) }, icon('trash'), 'Delete')));
+  }
+  return card;
+}
+function renderTrending(){
+  const grid = $('#trendingGrid'); grid.replaceChildren();
+  getAllCharacters().forEach(c => grid.append(characterCard(c, false)));
+}
+function renderAdded(){
+  const body = $('#addedBody'); body.replaceChildren();
+  const mine = [...state.userChars].sort((a, b) => b.createdAt - a.createdAt);
+  if (!mine.length){
+    body.append(h('div', { class:'empty-state' },
+      h('h3', { text:'Nothing added yet' }),
+      h('p', { text:'Add your favourite character with a name, a short description and an image link.' }),
+      h('button', { class:'btn solid', type:'button', onclick:() => openCharacterForm() }, icon('plus'), 'Add a character')));
+    return;
+  }
+  const grid = h('div', { class:'card-grid' });
+  mine.forEach(c => grid.append(characterCard(c, true)));
+  body.append(grid);
+}
+
+/* ---------- 4g. Explore cards (built once) ---------- */
+function buildExplore(){
+  const grid = $('#exploreGrid');
+  EXPLORE_ITEMS.forEach(item => grid.append(
+    h('button', { class:'explore-card', type:'button',
+      onclick:() => {
+        if (item.action === 'scenes') setScenesOpen(true, true);
+        else { openSearch(false); runSearch(item.query, { record:true }); }
+      } },
+      h('span', { class:'ico' }, icon(item.icon)),
+      h('strong', { text:item.title }),
+      h('span', { text:item.desc }))));
+}
+
+function renderAll(){
+  renderHero(); renderScenes(); renderRecent(); renderChibi(); renderInfo();
+  renderResults(); renderTrending(); renderAdded();
+}
+
+
+/* =========================================================
+   5. SEARCH
+   ========================================================= */
+const searchPanel = $('#searchPanel'), searchInput = $('#searchInput');
+
+function searchCharacters(q){
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const meaningful = words.filter(w => !STOP_WORDS.has(w));
+  const tokens = meaningful.length ? meaningful : words;
+  return getAllCharacters().map(c => {
+    const name = c.name.toLowerCase(), anime = (c.animeName || '').toLowerCase();
+    const desc = c.description.toLowerCase(), tags = (c.tags || []).join(' ').toLowerCase();
+    let score = 0;
+    tokens.forEach(t => {
+      if (name.includes(t)) score += 3;
+      if (anime.includes(t)) score += 2;
+      if (tags.includes(t)) score += 2;
+      if (desc.includes(t)) score += 1;
+    });
+    return { c, score };
+  }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).map(r => r.c);
+}
+
+function runSearch(raw, { record = true } = {}){
+  const q = (raw || '').trim().replace(/\s+/g, ' ');
+  searchInput.value = q;
+  if (!q){ clearSearch(); toast('Type a name or series to search.', 'info'); return; }
+  state.query = q;
+  setActive('search');
+  const results = searchCharacters(q);
+  if (record && results.length) addRecent(q);       // only successful searches are remembered
+  renderResults();
+  scrollToEl($('#results'));
+}
+function clearSearch(){
+  state.query = '';
+  searchInput.value = '';
+  renderResults();
+}
+function renderResults(){
+  const sec = $('#results');
+  if (!state.query){ sec.hidden = true; return; }
+  sec.hidden = false;
+  const results = searchCharacters(state.query);
+  $('#resultsTitle').textContent = `Results for “${state.query}”`;
+  $('#resultsCount').textContent = results.length === 1 ? '1 character found' : `${results.length} characters found`;
+  const body = $('#resultsBody'); body.replaceChildren();
+  if (!results.length){
+    const sugg = h('div', { class:'chips-row' });
+    ['Kessoku Band', 'Popularity', 'Hitori'].forEach(s => sugg.append(
+      h('button', { class:'btn outline small', type:'button', text:s, onclick:() => runSearch(s) })));
+    body.append(h('div', { class:'empty-state' },
+      h('h3', { text:'No matches found' }),
+      h('p', { text:'Try a character name, a series name, or a word from a description.' }), sugg));
+    return;
+  }
+  const grid = h('div', { class:'card-grid' });
+  results.forEach(c => grid.append(characterCard(c, true)));
+  body.append(grid);
+}
+
+function openSearch(focus){
+  searchPanel.hidden = false;
+  setActive('search');
+  if (focus) searchInput.focus();
+}
+function closeSearch(){
+  searchPanel.hidden = true;
+  setActive('home');
+}
+
+
+/* =========================================================
+   6. MODALS & FORMS
+   ========================================================= */
+const modalRoot = $('#modal'), modalDialog = $('#modalDialog');
+let lastFocus = null, closeTimer = null;
+
+function openModal(content, { wide = false } = {}){
+  clearTimeout(closeTimer);
+  const alreadyOpen = !modalRoot.hidden;
+  if (!alreadyOpen) lastFocus = document.activeElement;
+  modalDialog.className = 'modal-dialog' + (wide ? ' wide' : '');
+  modalDialog.replaceChildren(
+    h('button', { class:'modal-close', type:'button', 'aria-label':'Close dialog', onclick:closeModal }, icon('close')),
+    content);
+  modalRoot.hidden = false;
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => modalRoot.classList.add('open'));
+  const first = $('[data-autofocus]', modalDialog) || $('.modal-close', modalDialog);
+  first.focus({ preventScroll:true });
+  modalDialog.scrollTop = 0;
+}
+function closeModal(){
+  if (modalRoot.hidden) return;
+  modalRoot.classList.remove('open');
+  document.body.style.overflow = '';
+  const finish = () => {
+    modalRoot.hidden = true;
+    modalDialog.replaceChildren();
+    if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll:true });
+  };
+  if (reduceMotion()) finish(); else closeTimer = setTimeout(finish, 180);
+  if (state.nav === 'message') setActive(state.previousNav === 'message' ? 'home' : state.previousNav);
+}
+/* backdrop click closes; clicks inside the dialog do not */
+let downOnBackdrop = false;
+modalRoot.addEventListener('mousedown', e => { downOnBackdrop = e.target === modalRoot; });
+modalRoot.addEventListener('click', e => { if (downOnBackdrop && e.target === modalRoot) closeModal(); downOnBackdrop = false; });
+
+/* keep Tab inside the dialog */
+modalRoot.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const items = $$('button,[href],input,textarea,select,[tabindex]:not([tabindex="-1"])', modalDialog).filter(el => !el.disabled && !el.hidden && el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
+
+/* ---------- 6a. Character details ---------- */
+function openDetails(id){
+  const c = findCharacter(id);
+  if (!c) return;
+  const actions = c.isUserAdded
+    ? h('div', { class:'detail-actions' },
+        h('button', { class:'btn solid small', type:'button', onclick:() => openCharacterForm(c.id) }, icon('edit'), 'Edit'),
+        h('button', { class:'btn outline small', type:'button', onclick:() => confirmDelete(c.id) }, icon('trash'), 'Delete'))
+    : h('p', { class:'hint', text:'Original reference character – it cannot be edited or deleted.' });
+  openModal(h('div', { class:'detail' },
+    h('div', { class:'detail-art' + (c.imageType === 'cutout' ? ' is-cutout' : '') }, img(c.imageUrl, `Artwork of ${c.name}`)),
+    h('div', {},
+      h('h2', { id:'modalTitle', text:c.name }),
+      c.animeName ? h('p', { class:'detail-anime', text:c.animeName }) : null,
+      h('p', { class:'detail-desc', text:c.description }),
+      c.sceneImageUrl ? h('figure', { class:'detail-scene' }, img(c.sceneImageUrl, `Anime scene featuring ${c.name}`), h('figcaption', { text:'Anime scene' })) : null,
+      actions)), { wide:true });
+}
+
+/* ---------- 6b. Form field helper ---------- */
+function makeField({ id, label, type = 'text', required = false, placeholder = '', value = '', multiline = false, hint = '', maxlength = null }){
+  const errId = id + '-err', hintId = id + '-hint';
+  const input = h(multiline ? 'textarea' : 'input', {
+    id, name:id, class:'input', placeholder, maxlength,
+    type: multiline ? null : type, rows: multiline ? 4 : null,
+    autocomplete:'off', 'aria-describedby': (hint ? hintId + ' ' : '') + errId,
+    'aria-required': required ? 'true' : null
+  });
+  input.value = value;
+  const err = h('p', { class:'field-error', id:errId, hidden:true });
+  const wrap = h('div', { class:'field' },
+    h('label', { for:id }, label, required ? h('span', { class:'req', text:' *' }) : h('span', { class:'opt', text:' (optional)' })),
+    input, hint ? h('p', { class:'hint', id:hintId, text:hint }) : null, err);
+  return {
+    wrap, input,
+    setError(msg){
+      err.hidden = !msg;
+      err.textContent = msg ? '⚠ ' + msg : '';
+      input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+    }
+  };
+}
+
+/* ---------- 6c. Add / Edit character ---------- */
+function openCharacterForm(editId = null){
+  const editing = editId ? state.userChars.find(c => c.id === editId) : null;
+  if (editId && !editing){ toast('Only characters you added can be edited.', 'error'); return; }
+
+  const f = {
+    name: makeField({ id:'cf-name', label:'Character name', required:true, maxlength:60, value:editing ? editing.name : '', placeholder:'e.g. Seika Ijichi' }),
+    description: makeField({ id:'cf-description', label:'Short description', required:true, multiline:true, maxlength:400, value:editing ? editing.description : '', placeholder:'A sentence or two about the character' }),
+    imageUrl: makeField({ id:'cf-image', label:'Character image URL', required:true, type:'url', value:editing ? editing.imageUrl : '', placeholder:'https://…/character.png', hint:'Paste a link that starts with http:// or https://' }),
+    sceneImageUrl: makeField({ id:'cf-scene', label:'Anime scene image URL', type:'url', value:editing ? editing.sceneImageUrl : '', placeholder:'https://…/scene.jpg' }),
+    animeName: makeField({ id:'cf-anime', label:'Anime / series name', maxlength:80, value:editing ? editing.animeName : '', placeholder:'e.g. Bocchi the Rock!' })
+  };
+  const keys = ['name', 'description', 'imageUrl', 'sceneImageUrl', 'animeName'];
+  const status = h('p', { class:'form-status', role:'alert', hidden:true });
+  const submit = h('button', { class:'btn solid', type:'submit', text:editing ? 'Save changes' : 'Save Character' });
+  let busy = false;
+
+  const form = h('form', { class:'form', novalidate:true, onsubmit:e => {
+    e.preventDefault();
+    if (busy) return;                                   // blocks accidental double submits
+    const v = {};
+    keys.forEach(k => { v[k] = f[k].input.value.trim(); });
+    const errs = validateCharacter(v, editing ? editing.id : null);
+    keys.forEach(k => f[k].setError(errs[k] || ''));
+    const firstBad = keys.find(k => errs[k]);
+    status.hidden = !firstBad;
+    status.textContent = firstBad ? '⚠ Please fix the highlighted fields.' : '';
+    if (firstBad){ f[firstBad].input.focus(); return; }
+
+    busy = true; submit.disabled = true; submit.textContent = 'Saving…';
+    setTimeout(() => {
+      const savedId = saveCharacter(v, editing ? editing.id : null);
+      busy = false;
+      closeModal();
+      toast(editing ? `Saved changes to ${v.name}.` : `${v.name} was added!`);
+      const idx = getAllCharacters().findIndex(c => c.id === savedId);
+      if (idx >= 0) goTo(idx, true);
+    }, 300);
+  } },
+    h('h2', { id:'modalTitle', text:editing ? 'Edit character' : 'Add a character' }),
+    h('p', { class:'hint', text:'Saved in this browser only (localStorage). Nothing is uploaded to a server.' }),
+    keys.map(k => f[k].wrap), status,
+    h('div', { class:'form-actions' }, h('button', { class:'btn outline', type:'button', text:'Cancel', onclick:closeModal }), submit));
+  openModal(form);
+  f.name.input.setAttribute('data-autofocus', '');
+  f.name.input.focus();
+}
+
+function validateCharacter(v, editId){
+  const errs = {};
+  if (!v.name) errs.name = 'Please enter a character name.';
+  else if (getAllCharacters().some(c => c.id !== editId && c.name.toLowerCase() === v.name.toLowerCase()))
+    errs.name = 'A character with this name already exists.';
+  if (!v.description) errs.description = 'Please add a short description.';
+  if (!v.imageUrl) errs.imageUrl = 'Please paste a character image URL.';
+  else if (!isValidUrl(v.imageUrl)) errs.imageUrl = 'Enter a valid link starting with http:// or https://.';
+  if (v.sceneImageUrl && !isValidUrl(v.sceneImageUrl)) errs.sceneImageUrl = 'Enter a valid link starting with http:// or https://.';
+  return errs;
+}
+function newId(){
+  let id;
+  do { id = 'user-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  while (findCharacter(id));
+  return id;
+}
+function saveCharacter(v, editId){
+  const now = Date.now();
+  let id = editId;
+  if (editId){
+    const c = state.userChars.find(x => x.id === editId);
+    Object.assign(c, { name:v.name, description:v.description, imageUrl:v.imageUrl, sceneImageUrl:v.sceneImageUrl, animeName:v.animeName, updatedAt:now });
+  } else {
+    id = newId();
+    state.userChars.push({
+      id, name:v.name, description:v.description, imageUrl:v.imageUrl, imageType:'photo',
+      sceneImageUrl:v.sceneImageUrl, animeName:v.animeName, tags:[], isUserAdded:true, createdAt:now, updatedAt:now
+    });
+  }
+  persist(STORAGE_KEYS.characters, state.userChars);
+  renderAll();
+  return id;
+}
+
+/* ---------- 6d. Delete ---------- */
+function confirmDelete(id){
+  const c = state.userChars.find(x => x.id === id);
+  if (!c){ toast('Original characters are protected and cannot be deleted.', 'error'); return; }
+  openModal(h('div', { class:'form' },
+    h('h2', { id:'modalTitle', text:'Delete this character?' }),
+    h('p', { text:`“${c.name}” will be removed from the carousel, search and your saved characters. This cannot be undone.` }),
+    h('div', { class:'form-actions' },
+      h('button', { class:'btn outline', type:'button', text:'Cancel', 'data-autofocus':true, onclick:closeModal }),
+      h('button', { class:'btn danger', type:'button', onclick:() => {
+        const idx = getAllCharacters().findIndex(x => x.id === id);
+        state.userChars = state.userChars.filter(x => x.id !== id);
+        if (idx >= 0 && idx <= state.slide) state.slide = Math.max(0, state.slide - 1);
+        persist(STORAGE_KEYS.characters, state.userChars);
+        renderAll();
+        closeModal();
+        toast(`${c.name} was deleted.`);
+      } }, icon('trash'), 'Delete'))));
+}
+
+/* ---------- 6e. Login / Sign up / Message (front-end demos only) ---------- */
+function openDemoForm({ title, intro, fields, submitLabel, successMessage }){
+  const made = fields.map(makeField);
+  const form = h('form', { class:'form', novalidate:true, onsubmit:e => {
+    e.preventDefault();
+    let bad = null;
+    made.forEach((m, i) => {
+      const empty = fields[i].required && !m.input.value.trim();
+      m.setError(empty ? `Please fill in ${fields[i].label.toLowerCase()}.` : '');
+      if (empty && !bad) bad = m;
+    });
+    if (bad){ bad.input.focus(); return; }
+    closeModal();
+    toast(successMessage, 'info');
+  } },
+    h('h2', { id:'modalTitle', text:title }),
+    h('p', { class:'hint', text:intro }),
+    made.map(m => m.wrap),
+    h('div', { class:'form-actions' },
+      h('button', { class:'btn outline', type:'button', text:'Cancel', onclick:closeModal }),
+      h('button', { class:'btn solid', type:'submit', text:submitLabel })));
+  openModal(form);
+  made[0].input.focus();
+}
+const openLogin = () => openDemoForm({
+  title:'Log in', intro:'Demo only: there is no account system behind this page, so nothing is sent or saved.',
+  fields:[{ id:'lg-user', label:'Username or email', required:true, placeholder:'your name' }],
+  submitLabel:'Log in', successMessage:'Demo only – you are not actually logged in.'
+});
+const openSignup = () => openDemoForm({
+  title:'Sign up', intro:'Demo only: no real account is created and nothing is stored. No password is requested.',
+  fields:[{ id:'su-name', label:'Display name', required:true, placeholder:'your name' }, { id:'su-mail', label:'Email', type:'email', required:true, placeholder:'you@example.com' }],
+  submitLabel:'Sign up', successMessage:'Demo only – no account was created.'
+});
+function openMessage(){
+  state.previousNav = state.nav;
+  setActive('message');
+  openDemoForm({
+    title:'Message', intro:'Demo only: there is no messaging service connected, so this message is not sent anywhere.',
+    fields:[{ id:'ms-name', label:'Your name', required:true }, { id:'ms-text', label:'Message', required:true, multiline:true, maxlength:500 }],
+    submitLabel:'Send (demo)', successMessage:'Demo only – your message was not sent.'
+  });
+}
+
+
+/* =========================================================
+   7. NAVIGATION, WIRING & START-UP
+   ========================================================= */
+function setActive(name){
+  state.nav = name;
+  $$('[data-nav]').forEach(a => {
+    const on = a.dataset.nav === name;
+    a.classList.toggle('active', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+}
+const navToggle = $('#navToggle'), navMenu = $('#navMenu');
+function setMenu(open){
+  navMenu.classList.toggle('open', open);
+  navToggle.setAttribute('aria-expanded', String(open));
+  navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+}
+function goHome(){
+  searchPanel.hidden = true;
+  setActive('home');
+  window.scrollTo({ top:0, behavior: reduceMotion() ? 'auto' : 'smooth' });
+}
+
+function wire(){
+  /* icons injected into static buttons */
+  $('#btnProfile').append(icon('user'));
+  $('#btnAdd').append(icon('plus'));
+  navToggle.append(icon('menu'));
+  $('#searchIcon').append(icon('search'));
+  $('#searchClose').append(icon('close'));
+  $('#heroPrev').append(icon('left'));
+  $('#heroNext').append(icon('right'));
+  $('#scenesChevron').append(icon('chevron'));
+  $('#btnAddTrending').append(icon('plus'), ' Add character');
+
+  /* navbar */
+  $('#btnAdd').addEventListener('click', () => openCharacterForm());
+  $('#btnAddTrending').addEventListener('click', () => openCharacterForm());
+  $('#btnProfile').addEventListener('click', () => { setMenu(false); scrollToEl($('#recentlyAdded')); });
+  $('#btnLogin').addEventListener('click', () => { setMenu(false); openLogin(); });
+  $('#btnSignup').addEventListener('click', () => { setMenu(false); openSignup(); });
+  navToggle.addEventListener('click', () => setMenu(!navMenu.classList.contains('open')));
+  $$('[data-nav]').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    setMenu(false);
+    if (a.dataset.nav === 'home') goHome();
+    else if (a.dataset.nav === 'search') openSearch(true);
+    else openMessage();
+  }));
+
+  /* footer links */
+  $$('[data-footer]').forEach(b => b.addEventListener('click', () => {
+    const t = b.dataset.footer;
+    if (t === 'home') goHome();
+    else if (t === 'search'){ window.scrollTo({ top:0 }); openSearch(true); }
+    else if (t === 'message') openMessage();
+    else if (t === 'add') openCharacterForm();
+    else if (t === 'trending') scrollToEl($('#trending'));
+    else if (t === 'scenes') setScenesOpen(true, true);
+  }));
+
+  /* search */
+  $('#searchForm').addEventListener('submit', e => { e.preventDefault(); runSearch(searchInput.value); });
+  $('#searchClose').addEventListener('click', closeSearch);
+  $('#btnClearSearch').addEventListener('click', () => { clearSearch(); setActive(searchPanel.hidden ? 'home' : 'search'); });
+  $('#btnClearAll').addEventListener('click', clearRecent);
+
+  /* hero */
+  $('#heroPrev').addEventListener('click', () => goTo(state.slide - 1, true));
+  $('#heroNext').addEventListener('click', () => goTo(state.slide + 1, true));
+  const hero = $('.hero-wrap');
+  hero.addEventListener('mouseenter', () => { hoverPaused = true; stopAutoplay(); });
+  hero.addEventListener('mouseleave', () => { hoverPaused = false; startAutoplay(); });
+  hero.addEventListener('focusin', () => { hoverPaused = true; stopAutoplay(); });
+  hero.addEventListener('focusout', () => { hoverPaused = false; startAutoplay(); });
+  hero.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') goTo(state.slide - 1, true);
+    if (e.key === 'ArrowRight') goTo(state.slide + 1, true);
+  });
+  document.addEventListener('visibilitychange', () => document.hidden ? stopAutoplay() : startAutoplay());
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change', startAutoplay);
+
+  /* scenes */
+  $('#btnViewMore').addEventListener('click', () => setScenesOpen($('#moreScenes').hidden, true));
+  $('#btnHideScenes').addEventListener('click', () => { setScenesOpen(false); $('#btnViewMore').focus(); });
+
+  /* Escape: modal first, then menu/search */
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!modalRoot.hidden) closeModal();
+    else if (navMenu.classList.contains('open')) setMenu(false);
+    else if (!searchPanel.hidden && searchPanel.contains(document.activeElement)) closeSearch();
+  });
+}
+
+function init(){
+  loadState();
+  buildExplore();
+  wire();
+  renderAll();
+  setScenesOpen(false);
+  startAutoplay();
+}
+init();
+
+})();
+</script>
+</body>
+</html>
